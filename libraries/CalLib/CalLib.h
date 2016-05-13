@@ -44,6 +44,10 @@ typedef struct
   int Kp; // Proportionnal factor
   int Kd; // Derivative factor
   int Kdd; // Second derivative factor
+  byte backlight;
+  byte gyroBiasValid;
+  float gyroBias[3];                      // gyroBias values
+
 } CALLIB_DATA;
 
 //  calLibErase() erases any current data in the EEPROM

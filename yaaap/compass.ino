@@ -11,12 +11,13 @@
 	#define MPU9250_68                      // MPU9250 at address 0x68
 	//#define RTIMU_XNORTH_YEAST              0                   // this is the default identity matrix
 	#define RTIMU_XNORTH_YWEST              4
-	
-	
+
+
  */
 
-#define SERIALDEBUG 0
-//#define SERIALDEBUG 3 // Value to send yaw/pitch/roll to Processing sketch on host
+
+//#define SERIALDEBUG 0
+#define SERIALDEBUG 3 // Value to send yaw/pitch/roll to Processing sketch on host
 #include <Wire.h>
 #include "I2Cdev.h"
 #include "RTIMUSettings.h"
@@ -75,11 +76,13 @@ float compassHeading() {
 #endif
   }
 #if SERIALDEBUG == 3 // Sends to Processing view
-  Serial.print(fusion.getFusionPose().z()); // yaw
-  Serial.print(","); // print comma so values can be parsed
-  Serial.print(fusion.getFusionPose().y()); // pitch
-  Serial.print(","); // print comma so values can be parsed
-  Serial.println(fusion.getFusionPose().x()); // roll
+  if (imu->IMUGyroBiasValid()) {
+    Serial.print(fusion.getFusionPose().z()); // yaw
+    Serial.print(","); // print comma so values can be parsed
+    Serial.print(fusion.getFusionPose().y()); // pitch
+    Serial.print(","); // print comma so values can be parsed
+    Serial.println(fusion.getFusionPose().x()); // roll
+  }
 #endif
   yaw = map360(fusion.getFusionPose().z() * RTMATH_RAD_TO_DEGREE);
   //  yaw = fusion.getFusionPose().z() * RTMATH_RAD_TO_DEGREE;
@@ -91,6 +94,7 @@ float compassHeading() {
 }
 
 void compassInit() {
+  RTVector3 gyroBias;
   calLibRead(0, &calData);                           // pick up existing mag data (and other params) if there
 #if SERIALDEBUG==1
   for (int i = 0; i < 3; i++) {
@@ -108,6 +112,14 @@ void compassInit() {
     Serial.print("Init IMU failed: "); Serial.println(errcode);
   }
 #endif
+
+  if (calData.gyroBiasValid == 0x1) { // load gyroBias data if found on EEPROM
+    gyroBias.setX(calData.gyroBias[0]);
+    gyroBias.setY(calData.gyroBias[1]);
+    gyroBias.setZ(calData.gyroBias[2]);
+    imu->setGyroBias(gyroBias);
+  }
+
   bool cal = imu->getCalibrationValid();
 #if SERIALDEBUG==1
   if (cal)
@@ -125,7 +137,7 @@ void compassInit() {
   // 0 means that only gyros are used, 1 means that only accels/compass are used
   // In-between gives the fusion mix.
 
-  fusion.setSlerpPower(0.001);
+  fusion.setSlerpPower(0.002);
 
   // use of sensors in the fusion algorithm can be controlled here
   // change any of these to false to disable that sensor
@@ -136,7 +148,7 @@ void compassInit() {
 
   int loopCount = 0;
   while ( ! imu->IMUGyroBiasValid()) {
-    if (++loopCount > 1000)           continue;
+    //    if (++loopCount > 10000)           continue;
 
     compassHeading();
   }

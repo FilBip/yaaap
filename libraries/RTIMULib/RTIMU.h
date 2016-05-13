@@ -66,9 +66,11 @@ public:
 
     void setCalibrationData();
 
-    //  getCalibrationValid() returns true if the calibration data is being used
+   //  getCalibrationValid() returns true if the calibration data is being used
 
     bool getCalibrationValid() { return !m_calibrationMode && m_calibrationValid; }
+
+     void setGyroBias(RTVector3& gyroBias);  //  PL getGyroBias() sets gyroBias data being used
 
     // returns true if enough samples for valid data
 
@@ -78,6 +80,8 @@ public:
     inline const RTVector3& getAccel() { return m_accel; }          // get accel data in gs
     inline const RTVector3& getCompass() { return m_compass; }      // gets compass data in uT
     inline unsigned long getTimestamp() { return m_timestamp; }     // and the timestamp for it
+
+    inline const RTVector3& getGyroBias() { return m_gyroBias; }      // PL gets gyroBias
 
 protected:
     void gyroBiasInit();                                    // sets up gyro bias calculation

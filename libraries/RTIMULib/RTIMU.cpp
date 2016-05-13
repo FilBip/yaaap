@@ -354,4 +354,10 @@ bool RTIMU::IMUGyroBiasValid()
     return m_gyroBiasValid;
 }
 
+void RTIMU::setGyroBias(RTVector3& gyroBias)
+{
+    m_gyroBias=gyroBias;
+    m_gyroBiasValid = true;
+}
+
 

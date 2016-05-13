@@ -4,7 +4,6 @@
    2016 Philippe Leclercq
 
 */
-
 #define DEBUG 0
 #include <string.h>
 #include <avr/pgmspace.h>
@@ -23,9 +22,10 @@ const char string_2[] PROGMEM = "3. Update Kd";
 const char string_3[] PROGMEM = "4. Update Kdd";
 const char string_4[] PROGMEM = "5. Calibration";
 const char string_5[] PROGMEM = "6. Save";
+const char string_6[] PROGMEM = "7. Reset gyro bias";
 
 const char* const StringTable[] PROGMEM = {
-  string_0, string_1, string_2, string_3, string_4, string_5
+  string_0, string_1, string_2, string_3, string_4, string_5, string_6
 };
 
 //this is the gatekeeper function. The only one to really touch the strings in program memory.
@@ -128,15 +128,18 @@ void setupMenu() {
     buttonsTick();
     switch (keyPressed) {
       case 'u':
-        analogWrite(BACKLIGHTPIN, 255);
+        calData.backlight=255;
+        analogWrite(BACKLIGHTPIN, calData.backlight);
         break;
       case 'd':
-        analogWrite(BACKLIGHTPIN, 10);
+        calData.backlight=10;
+        analogWrite(BACKLIGHTPIN, calData.backlight);
         //       lcd.setBacklight(0); // Off
         break;
     }
   }
 
+ RTVector3 gyroBias;
   // special functions - 2nd level 
  while (!exitMenu) {
     lcd.clear();
@@ -152,7 +155,7 @@ void setupMenu() {
         if (line > 0) line--;
         break;
       case 'u':
-        if (line < 5) line++;
+        if (line < 6) line++;
         break;
       case 's':
         switch (line) {
@@ -175,10 +178,29 @@ void setupMenu() {
             compassCalibration();
             break;
           case 5:
+            if (imu->IMUGyroBiasValid()) { // save gyroBias data if valid
+               gyroBias=imu->getGyroBias();
+               calData.gyroBiasValid=0x1;
+               calData.gyroBias[0]=gyroBias.x();
+               calData.gyroBias[1]=gyroBias.y();
+               calData.gyroBias[2]=gyroBias.z();
+            }
             calLibWrite(0, &calData);
             lcd.setCursor(0, 1);
-            lcd.print("Saved to EEPROM");
+            lcd.print(F("Saved to EEPROM"));
             delay(1000);
+            exitMenu = true;
+            break;
+          case 6: //reset data on EEPROM
+            calData.gyroBiasValid=0;
+               calData.gyroBias[0]=0;
+               calData.gyroBias[1]=0;
+               calData.gyroBias[2]=0;
+            calData.Kp = 15;
+            calData.Kd = 20;
+            calData.Kdd = 0;
+            calData.backlight = 1;
+            calLibWrite(0, &calData);
             exitMenu = true;
             break;
         }

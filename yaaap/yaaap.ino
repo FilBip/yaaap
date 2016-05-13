@@ -27,7 +27,7 @@
 	To run, click once on button 2.
 
 	During run, click on button 1 or 3 increases (resp. decrease) 1 deg of bearing.
-				long press on button 1 or 3 increases (resp. decreases) 20 deg of bearing
+				long press on button 1 or 3 increases (resp. decrease) 20 deg of bearing
 				long press on button 1 and 2 (starboard and select) to tack to starboard
 				long press on button 3 and 2 (port and select) to tack to port
 				double click on button 2 to stop motor and standby
@@ -56,8 +56,8 @@
 #define SERIALDEBUG 1
 //#define SERVO 1
 #define TACKANGLE 100 // In degrees
-#define OVERLOADCURRENT 3000 // milliAmps
-#define OVERLOADDELAY 5000 // milliseconds
+#define OVERLOADCURRENT 4000 // milliAmps
+#define OVERLOADDELAY 2000
 #define DEADBAND 4 // Deadband in degrees
 // motor definitions
 //#define MOTORDRIVER 1 // BTN7970B
@@ -103,6 +103,8 @@ long refVoltage = 0;
 float cmd = 0;
 bool standby = true;
 bool launchTack = false;
+int tillerCurrent = 0;
+unsigned long overloadStart = 0;
 float heading = 0, bearing = 0, headingError = 0;
 float previousError = 0, deltaError = 0, deltaErrorDeriv = 0, previousDeltaError = 0;
 //int prevLoop = 0;
@@ -130,10 +132,6 @@ int servoAngle = 90;
    Subroutines
  ***********************************************************
 */
-int sign(int val) { // declare the missing sign() fn
-    return (val>0) - (val<0);
-}
-
 void printJustified(int value) {
   char buffer[7];
   sprintf(buffer, "%4d", value);
@@ -163,9 +161,6 @@ void beep(bool on) { // No sound, only a flashing led
 byte pulseState = LOW;
 unsigned long pulseCurrentMillis;
 unsigned long pulseStartMillis;
-int tillerCurrent = 0;
-int overloadDirection = 0;
-unsigned long overloadStart = 0;
 
 void tillerStandby(boolean state) {
   if (state == true) { // stop mode
@@ -188,10 +183,11 @@ void tillerStandby(boolean state) {
 void tillerInit() {
   // Init over current protection device (ACS712PIN)
   //  Serial.print("estimating avg. quiscent voltage:");
-  //read X samples to stabilize value
+  //read X samples to stabilise value
   static const int nbSamples = 200;
   for (int i = 0; i < nbSamples; i++) {
     refVoltage += analogRead(ACS712PIN);
+    //  Serial.print(refVoltage);Serial.println(" cumul");
     delay(1);//depends on sampling (on filter capacitor), can be 1/80000 (80kHz) max.
   }
   refVoltage /= nbSamples;
@@ -216,39 +212,35 @@ void tillerInit() {
   tillerStandby(true);
 }
 
-bool tillerOverload(int commandDirection) {
+bool tillerOverload() {
   const int sensitivity = 185;//change this to 100 for ACS712PIN-20A or to 66 for ACS712PIN-30A
   bool overload = false;
   if (overloadStart) {
-   if (overloadDirection == commandDirection) {       // If same direction than last detected overload
-    if ((millis() - overloadStart) < OVERLOADDELAY )  // wait delay
+    if ((millis() - overloadStart) < OVERLOADDELAY )
       overload = true;
     else
       overloadStart = 0; // End of pause. Reset delay
     return overload;
-   }
-   else
-      overloadStart = 0; // Direction has changed. Reset delay
   }
+
   int current = 0;
-  //read some samples to stabilize value
+  //read some samples to stabilise value
   for (int i = 0; i < 5; i++) {
     current = current + analogRead(ACS712PIN);
+    // Serial.print(current);Serial.println(" cumul");
+    //   delay(1);
   }
   current /= 5;
-   current -=  refVoltage;
+  // Serial.print(current);Serial.println(" somme");
+  current -=  refVoltage;
   tillerCurrent = current * 5000000 / 1023 / sensitivity; // to mA
   if (abs(tillerCurrent) > OVERLOADCURRENT) {
     overload = true;
     overloadStart = millis();
-    overloadDirection=commandDirection;
     tillerStandby(true);
     lcd.setCursor(0, 1);
     lcd.print(F(" OVERLOAD "));
   }
-  else
-    overloadDirection=0;
-
   return overload;
 }
 
@@ -279,7 +271,7 @@ void tillerPull() {
   digitalWrite(B_IN1, HIGH);
   digitalWrite(B_IN2, LOW);
 #endif
-#ifdef SERVO // tests
+#ifdef SERVO
   servoAngle -= 1;
   if (servoAngle < 0) servoAngle = 0;
   myservo.write(servoAngle);
@@ -288,15 +280,15 @@ void tillerPull() {
 
 void tillerCommand(int tillerCmd) {
   int pulsePeriod;
+  // Current / motor overload / end of course control
+  if (tillerOverload())   return;
 
   if (tillerCmd == 0) {
     tillerStandby(true);
     return;
   }
-  // Current / motor overload / end of course control
-  if (tillerOverload(sign(tillerCmd)))
-    return;
 
+// 
   pulseCurrentMillis = millis();
   int pulseWidth = 20 + abs(tillerCmd) * 18 / 10; // Higher command, longer pulse
   if (pulseCurrentMillis - pulseStartMillis <= pulseWidth) {
@@ -331,6 +323,7 @@ void tillerCommand(int tillerCmd) {
  ***********************************************************
 */
 int computeCmd() {
+  //int rounded;
   headingError = heading - bearing;
   if (abs(headingError) < DEADBAND / 2) {
     headingError = 0;
@@ -354,7 +347,8 @@ int computeCmd() {
 
   float tmp = (Kp * headingError + (Kd * deltaError + Kdd * deltaErrorDeriv) * 1000 / deltaTime) / 10; // by time in sec
   cmd = (cmd + tmp) / 2; // Average with last cmd for smoother cmd changements - test
-   if (cmd > 100) cmd = 100;
+  //  if (abs(cmd) < 20) cmd = 0;
+  if (cmd > 100) cmd = 100;
   if (cmd < -100) cmd = -100;
 #ifdef DEBUG
   // lcd.clear();
@@ -521,6 +515,7 @@ void setup() {
   Kd = calData.Kd;
   Kdd = calData.Kdd;
   bearing = compassHeading();
+  analogWrite(BACKLIGHTPIN, calData.backlight);
 
   //prevLoop = millis();
   lcd.setCursor(0, 0);
