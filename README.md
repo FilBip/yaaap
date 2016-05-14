@@ -21,7 +21,7 @@ The LCD display is an I2C version.
 ## Instructions
 The device is fixed behind the tiller facing the route.
 Button 1 on the left: sarboard/less fonctions
-button 2 on center: , select/run-standby fonctions
+button 2 on center: select/run-standby fonctions
 Button 3 on the right: port/plus fonctions
 	
 ### Startup
@@ -33,7 +33,8 @@ click once on button 2.
 
 ### During run
 click on button 1 or 3 increases (resp. decrease) 1 deg of bearing.
-long press on button 1 or 3 increases (resp. decrease) 20 deg of bearing
+long press on button 1 or 3 increases (resp. decreases) 20 deg of bearing
+long press on button 2 resets bearing to current heading
 long press on button 1 and 2 (starboard and select) to tack to starboard
 long press on button 3 and 2 (port and select) to tack to port
 double click on button 2 to stop motor and standby
@@ -41,6 +42,7 @@ double click on button 2 to stop motor and standby
 ### During standby
 long press button 1 push the tiller
 long press button 3 pull the tiller
+long press on button 2 resets bearing to current heading
 long press button 1 and 3 to enter setup
 
 ### On setup first level

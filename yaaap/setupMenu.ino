@@ -22,7 +22,7 @@ const char string_2[] PROGMEM = "3. Update Kd";
 const char string_3[] PROGMEM = "4. Update Kdd";
 const char string_4[] PROGMEM = "5. Calibration";
 const char string_5[] PROGMEM = "6. Save";
-const char string_6[] PROGMEM = "7. Reset gyro bias";
+const char string_6[] PROGMEM = "7. Reset params";
 
 const char* const StringTable[] PROGMEM = {
   string_0, string_1, string_2, string_3, string_4, string_5, string_6
@@ -111,7 +111,7 @@ void setupMenu() {
 
   // At first, show current values
   // until a key is pressed
-   lcd.clear();
+  lcd.clear();
   //	lcd.setCursor(0, 0);
   //	lcd.print("O ");
   //	printJustified(offX);
@@ -122,26 +122,26 @@ void setupMenu() {
   printJustified(Kp);
   printJustified(Kd);
   printJustified(Kdd);
- // special functions - First level - lightOff / Menu / lightOn
+  // special functions - First level - lightOff / Menu / lightOn
   keyPressed = ' ';
   while (keyPressed != 's') {
     buttonsTick();
     switch (keyPressed) {
       case 'u':
-        calData.backlight=255;
+        calData.backlight = 255;
         analogWrite(BACKLIGHTPIN, calData.backlight);
         break;
       case 'd':
-        calData.backlight=10;
+        calData.backlight = 10;
         analogWrite(BACKLIGHTPIN, calData.backlight);
         //       lcd.setBacklight(0); // Off
         break;
     }
   }
 
- RTVector3 gyroBias;
-  // special functions - 2nd level 
- while (!exitMenu) {
+  RTVector3 gyroBias;
+  // special functions - 2nd level
+  while (!exitMenu) {
     lcd.clear();
     lcd.setCursor(0, 0);
     printLCD_P(line);
@@ -179,11 +179,11 @@ void setupMenu() {
             break;
           case 5:
             if (imu->IMUGyroBiasValid()) { // save gyroBias data if valid
-               gyroBias=imu->getGyroBias();
-               calData.gyroBiasValid=0x1;
-               calData.gyroBias[0]=gyroBias.x();
-               calData.gyroBias[1]=gyroBias.y();
-               calData.gyroBias[2]=gyroBias.z();
+              gyroBias = imu->getGyroBias();
+              calData.gyroBiasValid = 0x1;
+              calData.gyroBias[0] = gyroBias.x();
+              calData.gyroBias[1] = gyroBias.y();
+              calData.gyroBias[2] = gyroBias.z();
             }
             calLibWrite(0, &calData);
             lcd.setCursor(0, 1);
@@ -192,14 +192,14 @@ void setupMenu() {
             exitMenu = true;
             break;
           case 6: //reset data on EEPROM
-            calData.gyroBiasValid=0;
-               calData.gyroBias[0]=0;
-               calData.gyroBias[1]=0;
-               calData.gyroBias[2]=0;
+            calData.gyroBiasValid = 0;
+            calData.gyroBias[0] = 0;
+            calData.gyroBias[1] = 0;
+            calData.gyroBias[2] = 0;
             calData.Kp = 15;
             calData.Kd = 20;
             calData.Kdd = 0;
-            calData.backlight = 1;
+            calData.backlight = 255;
             calLibWrite(0, &calData);
             exitMenu = true;
             break;

@@ -137,7 +137,7 @@ void compassInit() {
   // 0 means that only gyros are used, 1 means that only accels/compass are used
   // In-between gives the fusion mix.
 
-  fusion.setSlerpPower(0.002);
+  fusion.setSlerpPower(0.001);
 
   // use of sensors in the fusion algorithm can be controlled here
   // change any of these to false to disable that sensor
@@ -147,11 +147,10 @@ void compassInit() {
   fusion.setCompassEnable(true);
 
   int loopCount = 0;
-  while ( ! imu->IMUGyroBiasValid()) {
+  do {
     //    if (++loopCount > 10000)           continue;
-
     compassHeading();
-  }
+  } while ( ! imu->IMUGyroBiasValid() || ++loopCount<10); // at least a few loop for a good initial baering
 }
 
 void compassCalibration() {
