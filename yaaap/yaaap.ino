@@ -8,22 +8,22 @@
    I reduced the impact of magnetometer instability with a reduced SLERP value: fusion.setSlerpPower(0.001)
    The tiller actuator is the old cylinder from the original Autohelm 2000 tillerPilot (with Omron motor 2332 12V)
    Typical current for this motor is 1.6A. The cheap TB6612FNG can drive this motor with the 2 channels in parrallel (2A typical to 6A peak).
-   It can be replaced by a more powerfull driver like IBT_2 with BTN7970B. 
+   It can be replaced by a more powerfull driver like IBT_2 with BTN7970B.
    I dropped the usage of PWM with my old small motor. Minimal pulse is 10ms, increasing to continuous depending
    on the computed command(PID).
    There is no device to read the tiller position. Current to the motor is controlled to detect end of course or overload (ACS712).
    The interface is minimal, made of 3 buttons using OneButtons library https://github.com/mathertel/OneButton
    The LCD display is an I2C version.
-   
+
    Instructions
 	The device is fixed behind the tiller facing the route.
  	Button 1 on the left: sarboard/less fonctions
 	button 2 on center: , select/run-standby fonctions
 	Button 3 on the right: port/plus fonctions
-	
+
 	On startup, after initialization, the device is on standby, bearing to the current direction.
 	The display shows the status(Sby/Run), baering, heading and error (difference to baering).
-   
+
 	To run, click once on button 2.
 
 	During run, click on button 1 or 3 increases (resp. decrease) 1 deg of bearing.
@@ -32,7 +32,7 @@
 				long press on button 1 and 2 (starboard and select) to tack to starboard
 				long press on button 3 and 2 (port and select) to tack to port
 				double click on button 2 to stop motor and standby
-	
+
 	During standby,	long press button 1 push the tiller
 				long press on button 2 resets bearing to current heading
 				long press button 3 pull the tiller
@@ -51,14 +51,14 @@
 	To calibrate the compass, chose the menu item, draw 8 with the device. The display shows the offsets.
 	Click button 2 when OK.
 	Important: go to the saving menu item and validate to write calibration and other parameters to EEPROM.
-   
+
    */
 
 #define DEBUG 1
 #define SERIALDEBUG 1
 //#define SERVO 1
 #define TACKANGLE 100 // In degrees
-#define OVERLOADCURRENT 4000 // milliAmps
+#define OVERLOADCURRENT 2000 // milliAmps
 #define OVERLOADDELAY 2000
 #define DEADBAND 4 // Deadband in degrees
 // motor definitions
@@ -105,8 +105,6 @@ long refVoltage = 0;
 float cmd = 0;
 bool standby = true;
 bool launchTack = false;
-int tillerCurrent = 0;
-unsigned long overloadStart = 0;
 float heading = 0, bearing = 0, headingError = 0;
 float previousError = 0, deltaError = 0, deltaErrorDeriv = 0, previousDeltaError = 0;
 //int prevLoop = 0;
@@ -117,7 +115,7 @@ unsigned long prevDisplay = 0;
 #define DISPLAY_INTERVAL  500                         // interval between pose displays
 
 
-CALLIB_DATA calData;                                  // the calibration data and other EEPROM params
+CALLIB_DATA params;                                  // the calibration data and other EEPROM params
 
 int Kp = 10, Kd = 15, Kdd = 0; // proportional, derivative1 and derivative2 coefficients (tiller position do the integral/sum term)
 
@@ -134,6 +132,10 @@ int servoAngle = 90;
    Subroutines
  ***********************************************************
 */
+int sign(int val) { // declare the missing sign() fn
+  return (val > 0) - (val < 0);
+}
+
 void printJustified(int value) {
   char buffer[7];
   sprintf(buffer, "%4d", value);
@@ -163,6 +165,9 @@ void beep(bool on) { // No sound, only a flashing led
 byte pulseState = LOW;
 unsigned long pulseCurrentMillis;
 unsigned long pulseStartMillis;
+int tillerCurrent = 0;
+int overloadDirection = 0;
+unsigned long overloadStart = 0;
 
 void tillerStandby(boolean state) {
   if (state == true) { // stop mode
@@ -178,22 +183,21 @@ void tillerStandby(boolean state) {
     pulseState = LOW;
     digitalWrite(LED_PIN, false);
   }
-  //else // Standby mode not used
-  //  digitalWrite(R_EN,HIGH);
 }
 
 void tillerInit() {
   // Init over current protection device (ACS712PIN)
   //  Serial.print("estimating avg. quiscent voltage:");
-  //read X samples to stabilise value
+  //read X samples to stabilize value
   static const int nbSamples = 200;
   for (int i = 0; i < nbSamples; i++) {
     refVoltage += analogRead(ACS712PIN);
-    //  Serial.print(refVoltage);Serial.println(" cumul");
     delay(1);//depends on sampling (on filter capacitor), can be 1/80000 (80kHz) max.
   }
   refVoltage /= nbSamples;
+#if SERIALDEBUG == 1
   Serial.print(map(refVoltage, 0, 1023, 0, 5000)); Serial.println(" mV");
+#endif
 #if MOTORDRIVER == 1 // BTN7970B
   analogWrite(RPWM, LOW);
   analogWrite(LPWM, LOW);
@@ -214,35 +218,44 @@ void tillerInit() {
   tillerStandby(true);
 }
 
-bool tillerOverload() {
+bool tillerOverload(int commandDirection) {
   const int sensitivity = 185;//change this to 100 for ACS712PIN-20A or to 66 for ACS712PIN-30A
   bool overload = false;
   if (overloadStart) {
-    if ((millis() - overloadStart) < OVERLOADDELAY )
-      overload = true;
-    else
-      overloadStart = 0; // End of pause. Reset delay
-    return overload;
+    if (overloadDirection == commandDirection) {       // If same direction than last detected overload
+      if ((millis() - overloadStart) < OVERLOADDELAY )  // wait delay
+        overload = true;
+      else {
+        overloadStart = 0; // End of pause. Reset delay
+      }
+      return overload;
+    }
+    else {
+      overloadStart = 0; // Direction has changed. Reset delay
+    }
   }
-
   int current = 0;
-  //read some samples to stabilise value
+  //read some samples to stabilize value
   for (int i = 0; i < 5; i++) {
     current = current + analogRead(ACS712PIN);
-    // Serial.print(current);Serial.println(" cumul");
-    //   delay(1);
   }
   current /= 5;
-  // Serial.print(current);Serial.println(" somme");
   current -=  refVoltage;
   tillerCurrent = current * 5000000 / 1023 / sensitivity; // to mA
   if (abs(tillerCurrent) > OVERLOADCURRENT) {
     overload = true;
     overloadStart = millis();
+    overloadDirection = commandDirection;
     tillerStandby(true);
     lcd.setCursor(0, 1);
     lcd.print(F(" OVERLOAD "));
   }
+  else
+    overloadDirection = 0;
+
+#if SERIALDEBUG == 2
+  Serial.print("tillerCurrent="); Serial.print(tillerCurrent); Serial.println(" mV");
+#endif
   return overload;
 }
 
@@ -282,15 +295,23 @@ void tillerPull() {
 
 void tillerCommand(int tillerCmd) {
   int pulsePeriod;
+
   // Current / motor overload / end of course control
-  if (tillerOverload())   return;
+  if (tillerOverload(sign(tillerCmd)))
+    tillerCmd = 0;
+
+#if DEBUG == 1
+  lcd.setCursor(0, 1);
+  lcd.print("motor ");
+  printJustified(tillerCmd);
+  lcd.print("   ");
+#endif
 
   if (tillerCmd == 0) {
     tillerStandby(true);
     return;
   }
 
-// 
   pulseCurrentMillis = millis();
   int pulseWidth = 20 + abs(tillerCmd) * 18 / 10; // Higher command, longer pulse
   if (pulseCurrentMillis - pulseStartMillis <= pulseWidth) {
@@ -325,7 +346,6 @@ void tillerCommand(int tillerCmd) {
  ***********************************************************
 */
 int computeCmd() {
-  //int rounded;
   headingError = heading - bearing;
   if (abs(headingError) < DEADBAND / 2) {
     headingError = 0;
@@ -352,7 +372,7 @@ int computeCmd() {
   //  if (abs(cmd) < 20) cmd = 0;
   if (cmd > 100) cmd = 100;
   if (cmd < -100) cmd = -100;
-#ifdef DEBUG
+#if DEBUG == 2
   // lcd.clear();
   lcd.setCursor(0, 1);
   //printJustified((int)(Kp*headingError));
@@ -500,28 +520,25 @@ void setup() {
   Serial.println("Initializing...");
 #endif
   pinMode(LED_PIN, OUTPUT);
-  pinMode(BACKLIGHTPIN, OUTPUT); 
+  pinMode(BACKLIGHTPIN, OUTPUT);
 
-  lcd.setBacklight(1);
-  analogWrite(BACKLIGHTPIN, 255);
+  //  lcd.setBacklight(1);
   lcd.begin();
   lcd.setCursor(0, 0);
+  lcd.print("Init ");
+  calLibRead(0, &params);                           // pick up existing mag data (and other params) if there
+  analogWrite(BACKLIGHTPIN, params.backlight);
+  lcd.print("*");
   buttonsInit();
-  lcd.setCursor(0, 0);
-  lcd.print("Init tiller ");
+  lcd.print("*");
   tillerInit();
-  lcd.setCursor(0, 0);
-  lcd.print("Init compass");
+  lcd.print("*");
   compassInit();
-  Kp = calData.Kp;
-  Kd = calData.Kd;
-  Kdd = calData.Kdd;
+  lcd.print("*");
+  Kp = params.Kp;
+  Kd = params.Kd;
+  Kdd = params.Kdd;
   bearing = compassHeading();
-  analogWrite(BACKLIGHTPIN, calData.backlight);
-
-  //prevLoop = millis();
-  lcd.setCursor(0, 0);
-  lcd.print("Setup done  ");
 
 }
 

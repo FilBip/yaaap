@@ -128,12 +128,12 @@ void setupMenu() {
     buttonsTick();
     switch (keyPressed) {
       case 'u':
-        calData.backlight = 255;
-        analogWrite(BACKLIGHTPIN, calData.backlight);
+        params.backlight = 255;
+        analogWrite(BACKLIGHTPIN, params.backlight);
         break;
       case 'd':
-        calData.backlight = 10;
-        analogWrite(BACKLIGHTPIN, calData.backlight);
+        params.backlight = 10;
+        analogWrite(BACKLIGHTPIN, params.backlight);
         //       lcd.setBacklight(0); // Off
         break;
     }
@@ -164,15 +164,15 @@ void setupMenu() {
             break;
           case 1:
             Kp = updateValue(Kp, "Kp");
-            calData.Kp = Kp;
+            params.Kp = Kp;
             break;
           case 2:
             Kd = updateValue(Kd, "Kd");
-            calData.Kd = Kd;
+            params.Kd = Kd;
             break;
           case 3:
             Kdd = updateValue(Kdd, "Kdd");
-            calData.Kdd = Kdd;
+            params.Kdd = Kdd;
             break;
           case 4: //Calibration
             compassCalibration();
@@ -180,27 +180,27 @@ void setupMenu() {
           case 5:
             if (imu->IMUGyroBiasValid()) { // save gyroBias data if valid
               gyroBias = imu->getGyroBias();
-              calData.gyroBiasValid = 0x1;
-              calData.gyroBias[0] = gyroBias.x();
-              calData.gyroBias[1] = gyroBias.y();
-              calData.gyroBias[2] = gyroBias.z();
+              params.gyroBiasValid = 0x1;
+              params.gyroBias[0] = gyroBias.x();
+              params.gyroBias[1] = gyroBias.y();
+              params.gyroBias[2] = gyroBias.z();
             }
-            calLibWrite(0, &calData);
+            calLibWrite(0, &params);
             lcd.setCursor(0, 1);
             lcd.print(F("Saved to EEPROM"));
             delay(1000);
             exitMenu = true;
             break;
           case 6: //reset data on EEPROM
-            calData.gyroBiasValid = 0;
-            calData.gyroBias[0] = 0;
-            calData.gyroBias[1] = 0;
-            calData.gyroBias[2] = 0;
-            calData.Kp = 15;
-            calData.Kd = 20;
-            calData.Kdd = 0;
-            calData.backlight = 255;
-            calLibWrite(0, &calData);
+            params.gyroBiasValid = 0;
+            params.gyroBias[0] = 0;
+            params.gyroBias[1] = 0;
+            params.gyroBias[2] = 0;
+            params.Kp = 15;
+            params.Kd = 20;
+            params.Kdd = 0;
+            params.backlight = 255;
+            calLibWrite(0, &params);
             exitMenu = true;
             break;
         }

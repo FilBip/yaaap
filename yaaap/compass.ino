@@ -41,7 +41,7 @@ int sampleCount;
 float compassHeading() {
   float yaw;
   //  int loopCount = 1;
-#if SERIALDEBUG == 1
+#if SERIALDEBUG
   unsigned long now = millis();
   unsigned long delta;
 #endif
@@ -76,12 +76,16 @@ float compassHeading() {
 #endif
   }
 #if SERIALDEBUG == 3 // Sends to Processing view
-  if (imu->IMUGyroBiasValid()) {
-    Serial.print(fusion.getFusionPose().z()); // yaw
-    Serial.print(","); // print comma so values can be parsed
-    Serial.print(fusion.getFusionPose().y()); // pitch
-    Serial.print(","); // print comma so values can be parsed
-    Serial.println(fusion.getFusionPose().x()); // roll
+  if ((now - lastDisplay) >= 20) {
+    lastDisplay = now;
+    if (imu->IMUGyroBiasValid()) {
+      Serial.print(fusion.getFusionPose().z()); // yaw
+      Serial.print(","); // print comma so values can be parsed
+      Serial.print(fusion.getFusionPose().y()); // pitch
+      Serial.print(","); // print comma so values can be parsed
+      Serial.println(fusion.getFusionPose().x()); // roll
+      //  delay(10);
+    }
   }
 #endif
   yaw = map360(fusion.getFusionPose().z() * RTMATH_RAD_TO_DEGREE);
@@ -95,12 +99,11 @@ float compassHeading() {
 
 void compassInit() {
   RTVector3 gyroBias;
-  calLibRead(0, &calData);                           // pick up existing mag data (and other params) if there
 #if SERIALDEBUG==1
   for (int i = 0; i < 3; i++) {
-    Serial.print(calData.magMin[i]); Serial.print(" "); Serial.println(calData.magMax[i]);
+    Serial.print(params.magMin[i]); Serial.print(" "); Serial.println(params.magMax[i]);
   }
-  Serial.print(calData.Kp); Serial.print(" "); Serial.print(calData.Kd); Serial.print(" "); Serial.println(calData.Kdd);
+  Serial.print(params.Kp); Serial.print(" "); Serial.print(params.Kd); Serial.print(" "); Serial.println(params.Kdd);
 #endif
   imu = RTIMU::createIMU(&settings);                        // create the imu object
 #if SERIALDEBUG==1
@@ -113,10 +116,10 @@ void compassInit() {
   }
 #endif
 
-  if (calData.gyroBiasValid == 0x1) { // load gyroBias data if found on EEPROM
-    gyroBias.setX(calData.gyroBias[0]);
-    gyroBias.setY(calData.gyroBias[1]);
-    gyroBias.setZ(calData.gyroBias[2]);
+  if (params.gyroBiasValid == 0x1) { // load gyroBias data if found on EEPROM
+    gyroBias.setX(params.gyroBias[0]);
+    gyroBias.setY(params.gyroBias[1]);
+    gyroBias.setZ(params.gyroBias[2]);
     imu->setGyroBias(gyroBias);
   }
 
@@ -137,7 +140,7 @@ void compassInit() {
   // 0 means that only gyros are used, 1 means that only accels/compass are used
   // In-between gives the fusion mix.
 
-  fusion.setSlerpPower(0.001);
+  fusion.setSlerpPower(0.003);
 
   // use of sensors in the fusion algorithm can be controlled here
   // change any of these to false to disable that sensor
@@ -148,9 +151,8 @@ void compassInit() {
 
   int loopCount = 0;
   do {
-    //    if (++loopCount > 10000)           continue;
     compassHeading();
-  } while ( ! imu->IMUGyroBiasValid() || ++loopCount<10); // at least a few loop for a good initial baering
+  } while ( ! imu->IMUGyroBiasValid() || ++loopCount < 20); // at least a few loop for a good initial baering
 }
 
 void compassCalibration() {
@@ -161,12 +163,12 @@ void compassCalibration() {
   RTVector3 mag;
 
 
-  // calLibRead(0, &calData);                           // pick up existing mag data if there
+  // calLibRead(0, &params);                           // pick up existing mag data if there
 
-  calData.magValid = false;
+  params.magValid = false;
   for (int i = 0; i < 3; i++) {
-    calData.magMin[i] = 10000000;                    // init mag cal data
-    calData.magMax[i] = -10000000;
+    params.magMin[i] = 10000000;                    // init mag cal data
+    params.magMax[i] = -10000000;
   }
 
   imu->setCalibrationMode(true);                     // make sure we get raw data
@@ -177,19 +179,19 @@ void compassCalibration() {
     if (imu->IMURead()) {                                 // get the latest data
       mag = imu->getCompass();
       for (int i = 0; i < 3; i++) {
-        if (mag.data(i) < calData.magMin[i]) {
-          calData.magMin[i] = mag.data(i);
+        if (mag.data(i) < params.magMin[i]) {
+          params.magMin[i] = mag.data(i);
         }
-        if (mag.data(i) > calData.magMax[i]) {
-          calData.magMax[i] = mag.data(i);
+        if (mag.data(i) > params.magMax[i]) {
+          params.magMax[i] = mag.data(i);
         }
       }
     }
 
     // Calculate offsets
-    tmpOffX = (calData.magMax[0] + calData.magMin[0]) / 2;
-    tmpOffY = (calData.magMax[1] + calData.magMin[1]) / 2;
-    tmpOffZ = (calData.magMax[2] + calData.magMin[2]) / 2;
+    tmpOffX = (params.magMax[0] + params.magMin[0]) / 2;
+    tmpOffY = (params.magMax[1] + params.magMin[1]) / 2;
+    tmpOffZ = (params.magMax[2] + params.magMin[2]) / 2;
 
     lcd.setCursor(0, 1);
     lcd.print(tmpOffX);
@@ -203,8 +205,8 @@ void compassCalibration() {
   }
   // Save data if select key pressed, else exit
   if (keyPressed == 's') {
-    calData.magValid = true;
-    calLibWrite(0, &calData);
+    params.magValid = true;
+    calLibWrite(0, &params);
     compassInit();
   }
   else {
