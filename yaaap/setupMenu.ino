@@ -19,12 +19,13 @@ int line = 0;
 const char string_0[] PROGMEM = "1. Exit setup";
 const char string_1[] PROGMEM = "2. Update Kp";
 const char string_2[] PROGMEM = "3. Update Kd";
-const char string_3[] PROGMEM = "4. Calibration";
-const char string_4[] PROGMEM = "5. Save";
-const char string_5[] PROGMEM = "6. Reset params";
-#define LINES 6
+const char string_3[] PROGMEM = "4. Upd deadband";
+const char string_4[] PROGMEM = "5. Calibration";
+const char string_5[] PROGMEM = "6. Save";
+const char string_6[] PROGMEM = "7. Reset params";
+#define LINES 7
 const char* const StringTable[] PROGMEM = {
-  string_0, string_1, string_2, string_3, string_4, string_5
+  string_0, string_1, string_2, string_3, string_4, string_5, string_6
 };
 
 //this is the gatekeeper function. The only one to really touch the strings in program memory.
@@ -169,10 +170,14 @@ void setupMenu() {
             Kd = updateValue(Kd, "Kd");
             params.Kd = Kd;
             break;
-          case 3: //Calibration
+          case 3:
+            deadband = (byte)updateValue(deadband, "deadband");
+            params.deadband = deadband;
+            break;
+          case 4: //Calibration
             compassCalibration();
             break;
-          case 4:
+          case 5:
             if (imu->IMUGyroBiasValid()) { // save gyroBias data if valid
               gyroBias = imu->getGyroBias();
               params.gyroBiasValid = 0x1;
@@ -186,13 +191,14 @@ void setupMenu() {
             delay(1000);
             exitMenu = true;
             break;
-          case 5: //reset data on EEPROM
+          case 6: //reset data on EEPROM
             params.gyroBiasValid = 0;
             params.gyroBias[0] = 0;
             params.gyroBias[1] = 0;
             params.gyroBias[2] = 0;
             params.Kp = 3;
             params.Kd = 30;
+            params.deadband = 4;
             params.reserved = 0;
             params.backlight = 255;
             calLibWrite(0, &params);

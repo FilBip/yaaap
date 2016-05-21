@@ -58,9 +58,8 @@
 #define SERIALDEBUG 0
 //#define SERVO 1
 #define TACKANGLE 100 // In degrees
-#define OVERLOADCURRENT 1600 // milliAmps
+#define OVERLOADCURRENT 2400 // milliAmps
 #define OVERLOADDELAY 5000 // millisec
-#define DEADBAND 4 // Deadband in degrees
 // motor definitions
 //#define MOTORDRIVER 1 // BTN7970B
 #define MOTORDRIVER 2 // TB6612FNG
@@ -105,6 +104,7 @@ long refVoltage = 0;
 float cmd = 0;
 bool standby = true;
 bool launchTack = false;
+byte deadband = 4;
 float heading = 0, bearing = 0, headingError = 0;
 float previousError = 0, deltaError = 0;
 //float deltaErrorDeriv = 0, previousDeltaError = 0;
@@ -113,10 +113,9 @@ unsigned long previousTime = 0, deltaTime;
 bool setupFonctions = false;
 char keyPressed = ' ';
 unsigned long prevDisplay = 0;
-#define DISPLAY_INTERVAL  500                         // interval between pose displays
+#define DISPLAY_INTERVAL  1000   // interval between heading displays
 
-
-CALLIB_DATA params;                                  // the calibration data and other EEPROM params
+CALLIB_DATA params;              // the calibration data and other EEPROM params
 
 int Kp = 10, Kd = 15; // proportional, derivative1 coefficients (tiller position do the integral/sum term)
 
@@ -355,7 +354,7 @@ void tillerCommand(int tillerCmd) {
 */
 int computeCmd() {
   headingError = heading - bearing;
-  if (abs(headingError) < DEADBAND / 2) {
+  if (abs(headingError) < deadband / 2) {
     headingError = 0;
     cmd = 0;
   }
@@ -535,7 +534,10 @@ void setup() {
   lcd.setCursor(0, 0);
   lcd.print("Init ");
   calLibRead(0, &params);                           // pick up existing mag data (and other params) if there
+  Kp = params.Kp;
+  Kd = params.Kd;
   analogWrite(BACKLIGHTPIN, params.backlight);
+  deadband = params.deadband;
   lcd.print("*");
   buttonsInit();
   lcd.print("*");
@@ -543,8 +545,6 @@ void setup() {
   lcd.print("*");
   compassInit();
   lcd.print("*");
-  Kp = params.Kp;
-  Kd = params.Kd;
   bearing = compassHeading();
 
 }
