@@ -54,12 +54,12 @@
 
    */
 
-#define DEBUG 1
-#define SERIALDEBUG 1
+#define DEBUG 0
+#define SERIALDEBUG 0
 //#define SERVO 1
 #define TACKANGLE 100 // In degrees
-#define OVERLOADCURRENT 2000 // milliAmps
-#define OVERLOADDELAY 2000
+#define OVERLOADCURRENT 1600 // milliAmps
+#define OVERLOADDELAY 5000 // millisec
 #define DEADBAND 4 // Deadband in degrees
 // motor definitions
 //#define MOTORDRIVER 1 // BTN7970B
@@ -106,7 +106,8 @@ float cmd = 0;
 bool standby = true;
 bool launchTack = false;
 float heading = 0, bearing = 0, headingError = 0;
-float previousError = 0, deltaError = 0, deltaErrorDeriv = 0, previousDeltaError = 0;
+float previousError = 0, deltaError = 0;
+//float deltaErrorDeriv = 0, previousDeltaError = 0;
 //int prevLoop = 0;
 unsigned long previousTime = 0, deltaTime;
 bool setupFonctions = false;
@@ -117,7 +118,7 @@ unsigned long prevDisplay = 0;
 
 CALLIB_DATA params;                                  // the calibration data and other EEPROM params
 
-int Kp = 10, Kd = 15, Kdd = 0; // proportional, derivative1 and derivative2 coefficients (tiller position do the integral/sum term)
+int Kp = 10, Kd = 15; // proportional, derivative1 coefficients (tiller position do the integral/sum term)
 
 // LCD display interface pins
 //LiquidCrystal lcd(12, 11, 10, 9, 8, 7);
@@ -236,10 +237,11 @@ bool tillerOverload(int commandDirection) {
   }
   int current = 0;
   //read some samples to stabilize value
-  for (int i = 0; i < 5; i++) {
+  for (int i = 0; i < 10; i++) {
     current = current + analogRead(ACS712PIN);
+    delay(1);
   }
-  current /= 5;
+  current /= 10;
   current -=  refVoltage;
   tillerCurrent = current * 5000000 / 1023 / sensitivity; // to mA
   if (abs(tillerCurrent) > OVERLOADCURRENT) {
@@ -249,13 +251,12 @@ bool tillerOverload(int commandDirection) {
     tillerStandby(true);
     lcd.setCursor(0, 1);
     lcd.print(F(" OVERLOAD "));
+    lcd.setCursor(11, 1);
+    lcd.print(tillerCurrent);
   }
-  else
+  else {
     overloadDirection = 0;
-
-#if SERIALDEBUG == 2
-  Serial.print("tillerCurrent="); Serial.print(tillerCurrent); Serial.println(" mV");
-#endif
+  }
   return overload;
 }
 
@@ -320,9 +321,16 @@ void tillerCommand(int tillerCmd) {
   }
   else {
     if (abs(tillerCmd) < 100) {
+      tillerCmd = 0;
       pulseState = LOW;
       digitalWrite(LED_PIN, false);
       //     Serial.print("pulseW="); Serial.print(pulseWidth); Serial.print(" "); Serial.print(pulseCurrentMillis); Serial.print(" - "); Serial.print(pulseStartMillis); Serial.println(" ");
+#if DEBUG == 1
+  lcd.setCursor(0, 1);
+  lcd.print("motor ");
+  printJustified(tillerCmd);
+  lcd.print("   ");
+#endif
     }
     pulseStartMillis = millis();
   }
@@ -364,10 +372,10 @@ int computeCmd() {
   previousTime = now;
   deltaError = headingError - previousError;
   previousError = headingError;
-  deltaErrorDeriv = deltaError - previousDeltaError;
-  previousDeltaError = deltaError;
+ // deltaErrorDeriv = deltaError - previousDeltaError;
+  //previousDeltaError = deltaError;
 
-  float tmp = (Kp * headingError + (Kd * deltaError + Kdd * deltaErrorDeriv) * 1000 / deltaTime) / 10; // by time in sec
+  float tmp = (Kp * headingError + (Kd * deltaError) * 1000 / deltaTime); // by time in sec
   cmd = (cmd + tmp) / 2; // Average with last cmd for smoother cmd changements - test
   //  if (abs(cmd) < 20) cmd = 0;
   if (cmd > 100) cmd = 100;
@@ -376,8 +384,8 @@ int computeCmd() {
   // lcd.clear();
   lcd.setCursor(0, 1);
   //printJustified((int)(Kp*headingError));
+  printJustified((int)(Kp * headingError ));
   printJustified((int)(Kd * deltaError * 1000 / deltaTime));
-  printJustified((int)(Kdd * deltaErrorDeriv * 1000 / deltaTime));
   printJustified((int)cmd);
   lcd.print("  ");
 #endif
@@ -472,7 +480,7 @@ void b3LongPressStop() { // Move to badboard
 }
 
 void buttonsInit() {
-  static const int clickTicks = 500, pressTicks = 900;
+  static const int clickTicks = 300, pressTicks = 800;
   // link the button 1 functions.
   button1.setClickTicks(clickTicks);
   button1.setPressTicks(pressTicks);
@@ -537,7 +545,6 @@ void setup() {
   lcd.print("*");
   Kp = params.Kp;
   Kd = params.Kd;
-  Kdd = params.Kdd;
   bearing = compassHeading();
 
 }
@@ -558,7 +565,9 @@ void loop() {
   int ctrl;
   buttonsTick();
   if (setupFonctions) {
+    tillerCommand(0); // Security...
     setupMenu();
+    compassReset(); // Reinit fusion algo after any pause
     setupFonctions = false;
   }
   heading = compassHeading();
@@ -579,8 +588,9 @@ void loop() {
     printJustified((int)bearing);
     printJustified((int)heading);
     printJustified((int)headingError);
-    //printJustified(tillerCurrent);
-    //lcd.print("mA  ");
+    lcd.setCursor(0, 1);
+//    printJustified(tillerCurrent);
+    lcd.print(F("               "));
 
     lcd.print("   ");
   }

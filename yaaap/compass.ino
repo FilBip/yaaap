@@ -16,8 +16,8 @@
  */
 
 
-//#define SERIALDEBUG 0
-#define SERIALDEBUG 3 // Value to send yaw/pitch/roll to Processing sketch on host
+#define SERIALDEBUG 0
+//#define SERIALDEBUG 3 // Value to send yaw/pitch/roll to Processing sketch on host
 #include <Wire.h>
 #include "I2Cdev.h"
 #include "RTIMUSettings.h"
@@ -95,6 +95,15 @@ float compassHeading() {
   Serial.println(yaw);
 #endif
   return yaw;
+}
+
+void compassReset() {
+  int errcode = imu->IMUInit();
+#if SERIALDEBUG==1
+  if (errcode < 0) {
+    Serial.print("Init IMU failed: "); Serial.println(errcode);
+  }
+#endif
 }
 
 void compassInit() {

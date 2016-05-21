@@ -43,7 +43,7 @@ typedef struct
   float magMax[3];                      // max values
   int Kp; // Proportionnal factor
   int Kd; // Derivative factor
-  int Kdd; // Second derivative factor
+  int reserved; // future use
   byte backlight;
   byte gyroBiasValid;
   float gyroBias[3];                      // gyroBias values

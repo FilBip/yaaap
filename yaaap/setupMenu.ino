@@ -19,13 +19,12 @@ int line = 0;
 const char string_0[] PROGMEM = "1. Exit setup";
 const char string_1[] PROGMEM = "2. Update Kp";
 const char string_2[] PROGMEM = "3. Update Kd";
-const char string_3[] PROGMEM = "4. Update Kdd";
-const char string_4[] PROGMEM = "5. Calibration";
-const char string_5[] PROGMEM = "6. Save";
-const char string_6[] PROGMEM = "7. Reset params";
-
+const char string_3[] PROGMEM = "4. Calibration";
+const char string_4[] PROGMEM = "5. Save";
+const char string_5[] PROGMEM = "6. Reset params";
+#define LINES 6
 const char* const StringTable[] PROGMEM = {
-  string_0, string_1, string_2, string_3, string_4, string_5, string_6
+  string_0, string_1, string_2, string_3, string_4, string_5
 };
 
 //this is the gatekeeper function. The only one to really touch the strings in program memory.
@@ -121,7 +120,7 @@ void setupMenu() {
   lcd.print("K ");
   printJustified(Kp);
   printJustified(Kd);
-  printJustified(Kdd);
+//  printJustified(Kdd);
   // special functions - First level - lightOff / Menu / lightOn
   keyPressed = ' ';
   while (keyPressed != 's') {
@@ -155,7 +154,7 @@ void setupMenu() {
         if (line > 0) line--;
         break;
       case 'u':
-        if (line < 6) line++;
+        if (line < LINES) line++;
         break;
       case 's':
         switch (line) {
@@ -170,14 +169,10 @@ void setupMenu() {
             Kd = updateValue(Kd, "Kd");
             params.Kd = Kd;
             break;
-          case 3:
-            Kdd = updateValue(Kdd, "Kdd");
-            params.Kdd = Kdd;
-            break;
-          case 4: //Calibration
+          case 3: //Calibration
             compassCalibration();
             break;
-          case 5:
+          case 4:
             if (imu->IMUGyroBiasValid()) { // save gyroBias data if valid
               gyroBias = imu->getGyroBias();
               params.gyroBiasValid = 0x1;
@@ -191,14 +186,14 @@ void setupMenu() {
             delay(1000);
             exitMenu = true;
             break;
-          case 6: //reset data on EEPROM
+          case 5: //reset data on EEPROM
             params.gyroBiasValid = 0;
             params.gyroBias[0] = 0;
             params.gyroBias[1] = 0;
             params.gyroBias[2] = 0;
-            params.Kp = 15;
-            params.Kd = 20;
-            params.Kdd = 0;
+            params.Kp = 3;
+            params.Kd = 30;
+            params.reserved = 0;
             params.backlight = 255;
             calLibWrite(0, &params);
             exitMenu = true;
