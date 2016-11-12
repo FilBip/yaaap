@@ -22,7 +22,7 @@
 	Button 3 on the right: port/plus fonctions
 
 	On startup, after initialization, the device is on standby, bearing to the current direction.
-	The display shows the status(Sby/Run), baering, heading and error (difference to baering).
+	The display shows the status(Sby/Run), bearing, heading and error (difference to baering).
 
 	To run, click once on button 2.
 
@@ -112,12 +112,13 @@ float previousError = 0, deltaError = 0;
 unsigned long previousTime = 0, deltaTime;
 bool setupFonctions = false;
 char keyPressed = ' ';
-unsigned long prevDisplay = 0;
+unsigned long prevDisplay = 0, prevCommand = 0;
+#define COMMAND_INTERVAL   200   // interval between tiller command calculations
 #define DISPLAY_INTERVAL  1000   // interval between heading displays
 
 CALLIB_DATA params;              // the calibration data and other EEPROM params
 
-int Kp = 10, Kd = 15; // proportional, derivative1 coefficients (tiller position do the integral/sum term)
+int Kp = 3, Kd = 30; // proportional, derivative1 coefficients (tiller position do the integral/sum term)
 
 // LCD display interface pins
 //LiquidCrystal lcd(12, 11, 10, 9, 8, 7);
@@ -294,17 +295,17 @@ void tillerPull() {
 }
 
 void tillerCommand(int tillerCmd) {
-  int pulsePeriod;
 
   // Current / motor overload / end of course control
   if (tillerOverload(sign(tillerCmd)))
     tillerCmd = 0;
 
-#if DEBUG == 1
+#if DEBUG == 10
   lcd.setCursor(0, 1);
-  lcd.print("motor ");
-  printJustified(tillerCmd);
-  lcd.print("   ");
+  lcd.print("motor        ");
+  lcd.setCursor(6, 1);
+  lcd.print(tillerCmd);
+  lcd.print(" ");
 #endif
 
   if (tillerCmd == 0) {
@@ -313,22 +314,23 @@ void tillerCommand(int tillerCmd) {
   }
 
   pulseCurrentMillis = millis();
-  int pulseWidth = 20 + abs(tillerCmd) * 18 / 10; // Higher command, longer pulse
+  int pulseWidth = 20 + abs(tillerCmd) * 18 / 10; // Higher command, longer pulse (20 to 200ms)
   if (pulseCurrentMillis - pulseStartMillis <= pulseWidth) {
     pulseState = HIGH;
     digitalWrite(LED_PIN, true);
   }
   else {
-    if (abs(tillerCmd) < 100) {
+    if (abs(tillerCmd) < 100) { // 100 => continuous 
       tillerCmd = 0;
       pulseState = LOW;
       digitalWrite(LED_PIN, false);
       //     Serial.print("pulseW="); Serial.print(pulseWidth); Serial.print(" "); Serial.print(pulseCurrentMillis); Serial.print(" - "); Serial.print(pulseStartMillis); Serial.println(" ");
-#if DEBUG == 1
+#if DEBUG == 3
   lcd.setCursor(0, 1);
-  lcd.print("motor ");
   printJustified(tillerCmd);
-  lcd.print("   ");
+  lcd.print(" ");
+  printJustified(pulseState);
+  lcd.print(" ");
 #endif
     }
     pulseStartMillis = millis();
@@ -374,9 +376,7 @@ int computeCmd() {
  // deltaErrorDeriv = deltaError - previousDeltaError;
   //previousDeltaError = deltaError;
 
-  float tmp = (Kp * headingError + (Kd * deltaError) * 1000 / deltaTime); // by time in sec
-  cmd = (cmd + tmp) / 2; // Average with last cmd for smoother cmd changements - test
-  //  if (abs(cmd) < 20) cmd = 0;
+  cmd = Kp * headingError + (Kd * deltaError) * 1000 / deltaTime; // by time in sec
   if (cmd > 100) cmd = 100;
   if (cmd < -100) cmd = -100;
 #if DEBUG == 2
@@ -431,15 +431,19 @@ void b1LongPressStop() { // Move to starboard
   if (!launchTack) bearing = map360(bearing + 20);
   if (standby) tillerStandby(true); // Stop the tiller at the end of press during standby
 }
-void b2Click() { // standby off
-  if (standby) beep(true);
-  standby = false;
+void b2Click() { // standby / Run
+  beep(true);
+  standby = !standby;
+  tillerStandby(standby);
 }
-void b2DoubleClick() { // standby on
+/* Dbl click replaced by simple click
+ *  
+ void b2DoubleClick() { // standby on
   if (!standby) beep(true);
   standby = true;
   tillerStandby(standby);
 }
+*/
 void b2LongPressStop() { // reset steering or launch tack
   beep(true);
   if (launchTack)
@@ -493,7 +497,7 @@ void buttonsInit() {
   button2.setClickTicks(clickTicks);
   button2.setPressTicks(pressTicks);
   button2.attachClick(b2Click);
-  button2.attachDoubleClick(b2DoubleClick);
+//  button2.attachDoubleClick(b2DoubleClick);
   //button2.attachLongPressStart(b2LongPressStart);
   button2.attachLongPressStop(b2LongPressStop);
   //button2.attachDuringLongPress(b2LongPress);
@@ -554,6 +558,8 @@ void setup() {
  ***********************************************************
 */
 
+  float headingSum = 0;
+  int headingCnt = 0;
 void loop() {
   /*
      Main loop
@@ -562,7 +568,8 @@ void loop() {
    	compute steering (PID controller)
    	steer
   */
-  int ctrl;
+  int ctrl=0;
+  
   buttonsTick();
   if (setupFonctions) {
     tillerCommand(0); // Security...
@@ -570,12 +577,37 @@ void loop() {
     compassReset(); // Reinit fusion algo after any pause
     setupFonctions = false;
   }
-  heading = compassHeading();
-  ctrl = computeCmd();
-  if (!standby)
-    tillerCommand(ctrl);
-
+  // Sum for heading average
+  headingSum += compassHeading();
+  headingCnt++;
+ 
   unsigned long now = millis();
+
+ // Periodic calculation of the steering control (with heading average)
+  if ((now - prevCommand) >= COMMAND_INTERVAL) {
+    prevCommand = now;
+    heading = headingSum/headingCnt;
+#if DEBUG == 1
+  lcd.setCursor(0, 1);
+  lcd.print(headingCnt);
+  lcd.print(" ");
+#endif
+	  headingSum = 0;
+	  headingCnt = 0;
+    ctrl = computeCmd();
+#if DEBUG == 1
+  lcd.setCursor(5, 1);
+  lcd.print(" ");
+  lcd.print(ctrl);
+  lcd.print(" ");
+#endif
+  }
+
+  // Control running tiller actuator
+  if (!standby)
+      tillerCommand(ctrl);
+	
+  // Periodic display refresh
   if ((now - prevDisplay) >= DISPLAY_INTERVAL) {
     prevDisplay = now;
 
@@ -595,7 +627,4 @@ void loop() {
     lcd.print("   ");
   }
 
-  // int waitDelay = 1000 / COMPASSFREQ - millis() + prevLoop;
-  // if (waitDelay > 0) delay(waitDelay);
-  //  prevLoop = millis();
 }
