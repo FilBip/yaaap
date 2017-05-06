@@ -32,7 +32,7 @@ RTIMUSettings settings;                               // the settings object
 unsigned long lastDisplay;
 unsigned long lastRate;
 int sampleCount;
-#define DISPLAY_INTERVAL  500                         // interval between pose displays
+#define DISPLAY_POSE_INTERVAL  500                         // interval between pose displays
 
 /***********************************************************
    Compass management
@@ -65,7 +65,7 @@ float compassHeading() {
       lastRate = now;
     }
 
-    if ((now - lastDisplay) >= DISPLAY_INTERVAL) {
+    if ((now - lastDisplay) >= DISPLAY_POSE_INTERVAL) {
       lastDisplay = now;
       RTMath::display(" Gy", (RTVector3&)imu->getGyro());                // gyro data
       RTMath::display(" Ac", (RTVector3&)imu->getAccel());              // accel data

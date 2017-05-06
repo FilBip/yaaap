@@ -310,12 +310,13 @@ void tillerCommand(int tillerCmd) {
 
   if (tillerCmd == 0) {
     tillerStandby(true);
+    pulseStartMillis = millis();
     return;
   }
 
   pulseCurrentMillis = millis();
   int pulseWidth = 20 + abs(tillerCmd) * 18 / 10; // Higher command, longer pulse (20 to 200ms)
-  if (pulseCurrentMillis - pulseStartMillis <= pulseWidth) {
+  if ((pulseCurrentMillis - pulseStartMillis) <= pulseWidth) {
     pulseState = HIGH;
     digitalWrite(LED_PIN, true);
   }
@@ -330,6 +331,7 @@ void tillerCommand(int tillerCmd) {
   printJustified(tillerCmd);
   lcd.print(" ");
   printJustified(pulseState);
+  //printJustified(pulseWidth);
   lcd.print(" ");
 #endif
     }
