@@ -174,7 +174,7 @@ void setupMenu() {
             params.deadband = deadband;
             break;
           case 4: //Calibration
-  //          compassCalibration();
+              compassCalibration();
             break;
           case 5:
             if (imu->IMUGyroBiasValid()) { // save gyroBias data if valid
