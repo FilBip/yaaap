@@ -67,8 +67,8 @@
 #if MOTORDRIVER == 1 // BTN7970B
 #define RPWM 3
 #define LPWM 4
-#define R_EN 5
-#define L_EN 6
+//#define R_EN 5
+//#define L_EN 6
 #elif MOTORDRIVER == 2 // TB6612FNG // Two channels in parallel for a 2Amp motor
 #define A_PWM 3
 #define A_IN2 4
@@ -175,8 +175,8 @@ void tillerStandby(boolean state) {
 #if MOTORDRIVER == 1 // BTN7970B
     analogWrite(RPWM, LOW);
     analogWrite(LPWM, LOW);
-    digitalWrite(R_EN, LOW);
-    digitalWrite(L_EN, LOW);
+//    digitalWrite(R_EN, LOW);
+//    digitalWrite(L_EN, LOW);
 #elif MOTORDRIVER == 2 // TB6612FNG // Two channels in parallel for a 2Amp motor
     digitalWrite(A_PWM, LOW);
     digitalWrite(B_PWM, LOW);
@@ -202,8 +202,8 @@ void tillerInit() {
 #if MOTORDRIVER == 1 // BTN7970B
   analogWrite(RPWM, LOW);
   analogWrite(LPWM, LOW);
-  digitalWrite(R_EN, LOW);
-  digitalWrite(L_EN, LOW);
+//  digitalWrite(R_EN, LOW);
+//  digitalWrite(L_EN, LOW);
 #elif MOTORDRIVER == 2 // TB6612FNG // Two channels in parallel for a 2Amp motor
   pinMode(STBY, OUTPUT);
   pinMode(A_PWM, OUTPUT);
@@ -344,8 +344,8 @@ void tillerCommand(int tillerCmd) {
     tillerPush();
 
 #if MOTORDRIVER == 1 // BTN7970B
-  digitalWrite(R_EN, pulseState);
-  digitalWrite(L_EN, pulseState);
+//  digitalWrite(R_EN, pulseState);
+//  digitalWrite(L_EN, pulseState);
 #elif MOTORDRIVER == 2 // TB6612FNG // Two channels in parallel for a 2Amp motor
   digitalWrite(A_PWM, pulseState);
   digitalWrite(B_PWM, pulseState);
@@ -369,8 +369,7 @@ int computeCmd() {
       else
         headingError -= 360;
     }
-  }
-  unsigned long now = millis();
+   unsigned long now = millis();
   deltaTime = now - previousTime;
   previousTime = now;
   deltaError = headingError - previousError;
@@ -381,6 +380,7 @@ int computeCmd() {
   cmd = Kp * headingError + (Kd * deltaError) * 1000 / deltaTime; // by time in sec
   if (cmd > 100) cmd = 100;
   if (cmd < -100) cmd = -100;
+ }
 #if DEBUG == 2
   // lcd.clear();
   lcd.setCursor(0, 1);
