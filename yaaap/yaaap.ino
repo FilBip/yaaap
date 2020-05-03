@@ -562,6 +562,8 @@ void setup() {
 
   float headingSum = 0;
   int headingCnt = 0;
+  int ctrl = 0;
+
 void loop() {
   /*
      Main loop
@@ -570,7 +572,6 @@ void loop() {
    	compute steering (PID controller)
    	steer
   */
-  int ctrl=0;
   
   buttonsTick();
   if (setupFonctions) {
