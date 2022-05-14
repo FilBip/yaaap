@@ -154,7 +154,7 @@ void setupMenu() {
         if (line > 0) line--;
         break;
       case 'u':
-        if (line < LINES) line++;
+        if (line < LINES-1) line++;
         break;
       case 's':
         switch (line) {
